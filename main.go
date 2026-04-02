@@ -37,7 +37,8 @@ func waitForDevice(path string) {
 
 func runProxy() error {
 	args := []string{
-		"-loglevel", "error",
+		"-loglevel", "quiet",
+		"-err_detect", "ignore_err",
 		"-fflags", "nobuffer",
 		"-flags", "low_delay",
 		"-probesize", "32",
