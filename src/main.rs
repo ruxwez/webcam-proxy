@@ -25,7 +25,7 @@ struct Args {
     #[arg(long, default_value_t = 720, help = "Video height")]
     height: u32,
 
-    #[arg(long, default_value_t = 30, help = "Frames per second")]
+    #[arg(long, default_value_t = 12, help = "Frames per second")]
     fps: u32,
 
     #[arg(
