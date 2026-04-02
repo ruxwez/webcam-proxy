@@ -25,7 +25,7 @@ struct Args {
     #[arg(long, default_value_t = 720, help = "Video height")]
     height: u32,
 
-    #[arg(long, default_value_t = 12, help = "Frames per second")]
+    #[arg(long, default_value_t = 30, help = "Frames per second")]
     fps: u32,
 
     #[arg(
@@ -61,6 +61,34 @@ async fn ensure_output_device(path: &str) -> Result<(), Box<dyn std::error::Erro
         path
     );
 
+    // Try dynamic device creation first using v4l2loopback-ctl
+    let dynamic_status = Command::new("v4l2loopback-ctl")
+        .arg("add")
+        .arg("-n")
+        .arg("WebcamVirtual")
+        .arg("-x")
+        .arg("1")
+        .arg(path)
+        .status()
+        .await;
+
+    if let Ok(status) = dynamic_status {
+        if status.success() {
+            for _ in 0..10 {
+                if check_device(path) {
+                    println!(
+                        "Output device {} created successfully via v4l2loopback-ctl.",
+                        path
+                    );
+                    return Ok(());
+                }
+                sleep(Duration::from_millis(300)).await;
+            }
+        }
+    }
+
+    // Fallback if dynamic creation failed (e.g., module not loaded at all)
+    println!("Failed to create dynamically. Falling back to modprobe...");
     let video_nr_arg = format!("video_nr={video_nr}");
     let status = Command::new("modprobe")
         .arg("v4l2loopback")
@@ -126,7 +154,7 @@ async fn run_proxy(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
         "-i",
         &args.input,
         "-vf",
-        "format=yuv420p",
+        "format=yuyv422",
         "-f",
         "v4l2",
         &args.output,
