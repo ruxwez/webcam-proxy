@@ -40,6 +40,52 @@ fn check_device(path: &str) -> bool {
     Path::new(path).exists()
 }
 
+fn parse_video_number(path: &str) -> Option<u32> {
+    path.strip_prefix("/dev/video")?.parse::<u32>().ok()
+}
+
+async fn ensure_output_device(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if check_device(path) {
+        return Ok(());
+    }
+
+    let video_nr = parse_video_number(path).ok_or_else(|| {
+        format!(
+            "Cannot auto-create output device for '{}'. Use a /dev/videoN path.",
+            path
+        )
+    })?;
+
+    println!(
+        "Output device {} not found. Attempting to create it with v4l2loopback...",
+        path
+    );
+
+    let video_nr_arg = format!("video_nr={video_nr}");
+    let status = Command::new("modprobe")
+        .arg("v4l2loopback")
+        .arg("devices=1")
+        .arg(video_nr_arg)
+        .arg("card_label=WebcamVirtual")
+        .arg("exclusive_caps=1")
+        .status()
+        .await?;
+
+    if !status.success() {
+        return Err(format!("modprobe v4l2loopback failed with status: {status}").into());
+    }
+
+    for _ in 0..10 {
+        if check_device(path) {
+            println!("Output device {} created successfully.", path);
+            return Ok(());
+        }
+        sleep(Duration::from_millis(300)).await;
+    }
+
+    Err(format!("Output device {} was not created after modprobe.", path).into())
+}
+
 async fn wait_for_device(path: &str, retry_delay: Duration) {
     loop {
         if check_device(path) {
@@ -132,11 +178,8 @@ async fn main() {
     wait_for_device(&args.input, retry_delay).await;
 
     loop {
-        if !check_device(&args.output) {
-            eprintln!(
-                "Output device {} not found. Load v4l2loopback first:\n  sudo modprobe v4l2loopback devices=1 video_nr=10 card_label=\"WebcamVirtual\" exclusive_caps=1",
-                args.output
-            );
+        if let Err(e) = ensure_output_device(&args.output).await {
+            eprintln!("Failed to ensure output device {}: {}", args.output, e);
             std::process::exit(1);
         }
 
