@@ -38,6 +38,10 @@ func waitForDevice(path string) {
 func runProxy() error {
 	args := []string{
 		"-loglevel", "warning",
+		"-fflags", "nobuffer",
+		"-flags", "low_delay",
+		"-probesize", "32",
+		"-analyzeduration", "0",
 		"-f", "v4l2",
 		"-input_format", "mjpeg",
 		"-video_size", fmt.Sprintf("%dx%d", *width, *height),
