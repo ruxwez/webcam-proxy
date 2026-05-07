@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-clap = { version = "4.4", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
-which = "6.0"
+udev = "^0.9.3"
+v4l = "0.14.0"
+bitflags = "^2.9.0"
