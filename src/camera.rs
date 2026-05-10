@@ -25,13 +25,13 @@ pub enum CameraType {
 
 // Representa una cámara de video encontrada en /dev/video*.
 pub struct Camera {
-    pub uuid: String,         // Identificador único
-    pub name: String,         // Nombre legible del dispositivo
-    pub path: String,         // Ruta en /dev/videoN
-    pub driver: String,       // Driver del kernel
-    pub bus_info: String,     // Información del bus
+    pub uuid: String,                     // Identificador único
+    pub name: String,                     // Nombre legible del dispositivo
+    pub path: String,                     // Ruta en /dev/videoN
+    pub driver: String,                   // Driver del kernel
+    pub bus_info: String,                 // Información del bus
     pub capabilities: CameraCapabilities, // Capacidades
-    pub camera_type: CameraType, // Física o virtual
+    pub camera_type: CameraType,          // Física o virtual
 }
 
 impl Camera {
@@ -101,9 +101,9 @@ pub fn init_virtual_camera() -> Result<(), String> {
     )
 }
 
+// Crea el device /dev/video62 si v4l2loopback ya está cargado
 fn try_sysfs_add() -> Result<(), String> {
-    let add_path =
-        std::path::Path::new("/sys/devices/virtual/video4linux/v4l2loopback/add");
+    let add_path = std::path::Path::new("/sys/devices/virtual/video4linux/v4l2loopback/add");
 
     if !add_path.exists() {
         return Err(
@@ -115,7 +115,8 @@ fn try_sysfs_add() -> Result<(), String> {
     }
 
     // Algunas versiones necesitan el número solo, otras con \n
-    fs::write(add_path, "62").or_else(|_| fs::write(add_path, "62\n"))
+    fs::write(add_path, "62")
+        .or_else(|_| fs::write(add_path, "62\n"))
         .map_err(|e| format!("Error escribiendo {}: {}", add_path.display(), e))?;
 
     // Esperar a que udev cree el device node
@@ -127,14 +128,13 @@ fn try_sysfs_add() -> Result<(), String> {
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
-    Err(
-        "sysfs add ok pero /dev/video62 no apareció. ".to_string()
-            + "Prueba recargar el módulo:\n  sudo modprobe -r v4l2loopback"
-            + " && sudo modprobe v4l2loopback video_nr=62"
-            + " card_label=webcam_proxy exclusive_caps=1",
-    )
+    Err("sysfs add ok pero /dev/video62 no apareció. ".to_string()
+        + "Prueba recargar el módulo:\n  sudo modprobe -r v4l2loopback"
+        + " && sudo modprobe v4l2loopback video_nr=62"
+        + " card_label=webcam_proxy exclusive_caps=1")
 }
 
+// Carga el módulo v4l2loopback con sudo si hace falta
 fn try_modprobe() -> Result<(), String> {
     let modprobe_candidates = ["modprobe", "/sbin/modprobe", "/usr/sbin/modprobe"];
     let mut last_err = String::new();
@@ -226,7 +226,8 @@ pub fn get_all_cameras() -> Vec<Camera> {
         };
 
         // Obtener el dispositivo udev a partir del device number
-        let Some(device) = UdevDevice::from_devnum(DeviceType::Character, meta.st_rdev()).ok() else {
+        let Some(device) = UdevDevice::from_devnum(DeviceType::Character, meta.st_rdev()).ok()
+        else {
             continue;
         };
 
