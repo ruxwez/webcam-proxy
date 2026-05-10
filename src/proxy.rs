@@ -3,17 +3,50 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use nix::poll::{poll, PollFd, PollFlags};
+use v4l2r::bindings::{v4l2_captureparm, v4l2_fract, v4l2_streamparm};
 use v4l2r::ioctl::*;
 use v4l2r::memory::{MemoryType, MmapHandle};
 use v4l2r::{Format, PixelFormat, QueueType};
 
 use crate::camera::Camera;
 
+fn set_capture_frame_rate(fd: &mut std::fs::File, fps: u32) -> Result<(), String> {
+    let mut parm: v4l2_streamparm = unsafe { std::mem::zeroed() };
+    parm.type_ = QueueType::VideoCapture as u32;
+
+    let capture = v4l2_captureparm {
+        capability: 0x1000, // V4L2_CAP_TIMEPERFRAME
+        capturemode: 0,
+        timeperframe: v4l2_fract {
+            numerator: 1,
+            denominator: fps,
+        },
+        extendedmode: 0,
+        readbuffers: 0,
+        reserved: [0; 4],
+    };
+
+    unsafe {
+        std::ptr::write(std::ptr::addr_of_mut!(parm.parm.capture), capture);
+    }
+
+    let result: Result<v4l2_streamparm, _> = s_parm(fd, parm);
+    match result {
+        Ok(_) => {
+            println!("Frame rate fijado a {} fps", fps);
+            Ok(())
+        }
+        Err(e) => Err(format!("No se pudo fijar frame rate: {}", e)),
+    }
+}
+
 fn configure_input_format(fd: &mut std::fs::File) -> Result<Format, String> {
+    // Priorizamos YUYV 640x480 porque es el formato mas compatible
+    // con v4l2loopback y aplicaciones como Discord/Chromium.
     let candidates: [([u8; 4], u32, u32); 4] = [
+        (*b"YUYV", 640, 480),
         (*b"MJPG", 1280, 720),
         (*b"MJPG", 640, 480),
-        (*b"YUYV", 640, 480),
         (*b"YUYV", 320, 240),
     ];
 
@@ -66,6 +99,9 @@ pub fn start_proxy(
         "Formato input: {}x{} {:?}",
         source_fmt.width, source_fmt.height, source_fmt.pixelformat
     );
+
+    set_capture_frame_rate(&mut input_fd, 30)
+        .unwrap_or_else(|e| eprintln!("Advertencia: {}", e));
 
     // ---- Output (v4l2loopback) ----
     let mut output_fd = std::fs::OpenOptions::new()
@@ -128,7 +164,7 @@ pub fn start_proxy(
     // ---- Bucle principal ----
     while running.load(Ordering::Relaxed) {
         let poll_fd = PollFd::new(input_fd.as_fd(), PollFlags::POLLIN);
-        match poll(&mut [poll_fd], 200u16) {
+        match poll(&mut [poll_fd], 50u16) {
             Ok(0) => continue,
             Ok(_) => {}
             Err(nix::errno::Errno::EINTR) => continue,
