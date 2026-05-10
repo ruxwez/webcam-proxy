@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-udev = "^0.9.3"
-v4l = "0.14.0"
+v4l2r = "0.0.7"
+nix = { version = "0.28", features = ["poll"] }
 bitflags = "^2.9.0"
+ctrlc = "^3.4"
